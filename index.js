@@ -1,151 +1,124 @@
 const express = require('express')
 const app = express()
 var morgan = require('morgan')
+var colors = require('colors');
 const cors = require('cors')
+require('dotenv').config()
 
-// app.use(morgan('tiny'))
-app.use(express.json())
-app.use(express.static('dist'))
+const Person = require('./models/person')
+
+// app.use(morgan((tokens, req, res) => {
+//   return [
+//       tokens.method(req, res),
+//       tokens.url(req, res),
+//       tokens.status(req, res),
+//       tokens.res(req, res, 'Content-length'), '-',
+//       tokens['response-time'](req, res), 'ms'
+//   ].join(' ')
+// }))
+
+// ,
+//       `Name: ${req.body.name || '-'}`,
+//       `Number: ${req.body.number || '-'}`
+
+
+
 app.use(cors())
+app.use(express.json())
+app.use(morgan('tiny'))
+app.use(express.static('dist'))
 
-let persons = [
-    {
-        "name": "Arto Hellas",
-        "number": "040-123456",
-        "id": 1
-      },
-      {
-        "name": "Ada Lovelace",
-        "number": "39-44-5323523",
-        "id": 2
-      },
-      {
-        "name": "Dan Abramov",
-        "number": "12-43-234345",
-        "id": 3
-      },
-      {
-        "name": "Mary Poppendieck",
-        "number": "39-23-6423122",
-        "id": 4
-      },
-      {
-        "name": "cass",
-        "number": "25463125",
-        "id": 5
-      },
-      {
-        "name": "David Silva",
-        "number": "50-56-25874",
-        "id": 8
-      },
-      {
-        "name": "Rachie",
-        "number": "45-87-56890",
-        "id": 5017
-      },
-      {
-        "name": "Maxwell Dutch",
-        "number": "70-85-85413",
-        "id": 8568
-      }
-]
+const password = process.argv[2]
 
-let notes = [
-    {
-        "id": 1,
-        "content": "HTML is easy",
-        "important": true
-      },
-      {
-        "id": 2,
-        "content": "Browser can execute only JavaScript",
-        "important": false
-      },
-      {
-        "id": 3,
-        "content": "GET and POST are the most important methods of HTTP protocol",
-        "important": true
-      },
-      {
-        "content": "PUT and Delete are amazing CRID functionality",
-        "important": false,
-        "id": 4
+app.get('/info', async (req,res) => {
+    try {
+        const numOfPersons = await Person.countDocuments({});
+        const timeChecked = new Date()
+
+        res.send(
+            `<p> Phonebook has info for ${numOfPersons} people </p> <br /> 
+            <p>Time Checked: ${timeChecked}</p>
+            `
+        )
+    } catch (err) {
+        next(err)
     }
-]
-
-app.use(morgan((tokens, req, res) => {
-    return [
-        tokens.method(req, res),
-        tokens.url(req, res),
-        tokens.status(req, res),
-        tokens.res(req, res, 'Content-length'), '-',
-        tokens['response-time'](req, res), 'ms',
-        `Name: ${req.body.name || '-'}`,
-        `Number: ${req.body.number || '-'}`
-    ].join(' ')
-}))
-
-
-app.get('/info', (req,res) => {
-    const numOfPersons = persons.length
-    const timeChecked = new Date()
-
-    res.send(
-        `<p> Phonebook has info for ${numOfPersons} people </p> <br /> 
-        <p>Time Checked: ${timeChecked}</p>
-        `
-    )
 })
 
 app.get('/api/persons', (req,res) => {
-    res.json(persons)
-})
-app.get('/api/notes', (req,res) => {
-    res.json(notes)
-})
-
-app.get('/api/persons/:id', (req,res) => {
-    const id = Number(req.params.id)
-    console.log(id);
-    const person = persons.find(per => per.id === id)
-    console.log(person);
-    if(person) {
-        res.json(person)
-    } else {
-        res.send('Check address and try again').status(400).end()
-    }
+    Person.find({}).then(per => {
+      res.json(per)
+    })
 })
 
-const createId = () => {
-    return Math.floor(Math.random() * 10000)
-}
+app.get('/api/persons/:id', (req, res, next) => {
+    Person.findById(req.params.id).then(per => {
+        if (per) {
+            res.json(per)
+        } else {
+            res.status(404).end()
+        }
+    }).catch(error => next(error))
+})
 
 app.post('/api/persons', (req,res) => {
     const body = req.body
+    console.log(body);
 
-    if(!body.name || !body.number) {
+    if(!body.name || !body.number ) {
         return res.status(400).json({
-            error: "Name or Number missing And name must be unique"
+            error: "Name and Number are required"
         })
     }
-    const personAdded = {
-        id: createId(),
+  
+    const person =new Person ({
         name: body.name,
         number: body.number
+    })
+
+    person.save().then(savedPerson => {
+      res.json(savedPerson)
+    })
+})
+
+app.put('/api/persons/:id', (req,res, next) => {
+    const { name, number} = req.body
+
+    const person = {
+        name: name,
+        number: number
     }
-    persons = persons.concat(personAdded)
-
-    res.json(personAdded)
+    
+    Person.findByIdAndUpdate(req.params.id, person, {new: true, runValidators: true, context: 'query'})
+    .then(updatedPerson => { 
+        res.json(updatedPerson)
+    }).catch(err => next(err))
 })
 
-app.delete('/api/persons/:id', (req, res) => {
-    const id = Number(req.params.id)
-    persons = persons.filter(per => per.id  !== id)
-
-    res.status(204).end()
+app.delete('/api/persons/:id', (req, res, next) => {
+    Person.findByIdAndDelete(req.params.id).then(people => {
+        res.status(204).end()
+    }).catch(err => next(err))
 })
 
+const errorHandler = (error, req, res, next) => {
+    console.log(error.message);
+
+    if (error.message === 'CastError') {
+        return res.status(400).send({ error: 'Malformed ID'})
+    } else if (error.name === 'ValidationError') {
+        return res.status(400).json({ error: error.message})
+    }
+    next(error)
+}
+
+const unknownEndpoint = (req, res) => {
+    res.status(404).send({error: 'Unknown Endpoint'})
+}
+
+
+app.use(errorHandler)
+app.use(unknownEndpoint)
 
 const PORT = process.env.PORT || 3001
 app.listen(PORT, () => {
