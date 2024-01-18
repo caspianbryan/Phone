@@ -7,22 +7,6 @@ require('dotenv').config()
 
 const Person = require('./models/person')
 
-// app.use(morgan((tokens, req, res) => {
-//   return [
-//       tokens.method(req, res),
-//       tokens.url(req, res),
-//       tokens.status(req, res),
-//       tokens.res(req, res, 'Content-length'), '-',
-//       tokens['response-time'](req, res), 'ms'
-//   ].join(' ')
-// }))
-
-// ,
-//       `Name: ${req.body.name || '-'}`,
-//       `Number: ${req.body.number || '-'}`
-
-
-
 app.use(cors())
 app.use(express.json())
 app.use(morgan('tiny'))
@@ -63,7 +47,6 @@ app.get('/api/persons/:id', (req, res, next) => {
 
 app.post('/api/persons', (req,res) => {
     const body = req.body
-    console.log(body);
 
     if(!body.name || !body.number ) {
         return res.status(400).json({
@@ -78,7 +61,7 @@ app.post('/api/persons', (req,res) => {
 
     person.save().then(savedPerson => {
       res.json(savedPerson)
-    })
+    }).catch(err => next(err))
 })
 
 app.put('/api/persons/:id', (req,res, next) => {
